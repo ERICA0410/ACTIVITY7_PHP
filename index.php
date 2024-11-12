@@ -6,7 +6,7 @@
     $message = "";
     
     // Check if email and password match
-    if ($email == "jeremieregencia@gmail.com" && $password == "admin") {
+    if ($email == "rogelio.erica@marsu.edu.ph" && $password == "admin") {
         // Store user details in session
         $_SESSION['email'] = $email;
         $_SESSION['password'] = $password;

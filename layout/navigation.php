@@ -9,7 +9,7 @@
                 </a>
                 <a class="nav-link" href="../pages/Addform.php">
                     <div class="sb-nav-link-icon"><i class="fas fa-plus"></i></div>
-                    Add Pages
+                    Add Form
                 </a>
                 <a class="nav-link" href="../pages/showdetails.php">
                     <div class="sb-nav-link-icon"><i class="fas fa-list"></i></div>

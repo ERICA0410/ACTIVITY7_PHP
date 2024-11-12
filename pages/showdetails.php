@@ -1,223 +1,273 @@
 <?php
 session_start();
+
+// Check if email and password are set in the session
 if (!isset($_SESSION['email']) || !isset($_SESSION['password'])) {
-    header('Location: ../index.php');
+    header('location:../login.php');
     exit();
 }
 
-if (!isset($_SESSION['students'])) {
-    $_SESSION['students'] = [];
+// Initialize session variable to store entries if it doesn't exist
+if (!isset($_SESSION['entries'])) {
+    $_SESSION['entries'] = [];
 }
 
-$students = $_SESSION['students'];
-
-// Handle form submissions for Insert, Update, and Delete
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        if ($_POST['action'] === 'insert') {
-            // Insert a new student
-            $newStudent = [
-                'name' => $_POST['name'],
-                'age' => $_POST['age'],
-                'gender' => $_POST['gender']
-            ];
-            $_SESSION['students'][] = $newStudent;
-        } elseif ($_POST['action'] === 'update') {
-            // Update an existing student
-            $index = $_POST['index'];
-            $_SESSION['students'][$index] = [
-                'name' => $_POST['name'],
-                'age' => $_POST['age'],
-                'gender' => $_POST['gender']
-            ];
-        } elseif ($_POST['action'] === 'delete') {
-            // Delete a student
-            $index = $_POST['index'];
-            array_splice($_SESSION['students'], $index, 1);
-        }
-        // Redirect to prevent form resubmission
-        header('Location: ' . $_SERVER['PHP_SELF']);
-        exit();
+// Check if a delete request has been made
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $deleteIndex = (int)$_GET['delete'];
+    if (isset($_SESSION['entries'][$deleteIndex])) {
+        unset($_SESSION['entries'][$deleteIndex]);
+        $_SESSION['entries'] = array_values($_SESSION['entries']);
     }
 }
-?>
 
+// Check if an update request has been made
+if (isset($_GET['update']) && is_numeric($_GET['update'])) {
+    $updateIndex = (int)$_GET['update'];
+    $updateEntry = $_SESSION['entries'][$updateIndex]; // Get the entry to update
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <meta name="description" content="">
-    <meta name="author" content="">
-    <title>Dashboard</title>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Student Details</title>
     <?php include('../layout/style.php'); ?>
-</head>
-<body class="sb-nav-fixed">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"> <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72, #2a5298); /* Softer blue gradient */
+            color: #e6e6e6;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
 
+        .table-container {
+            max-width: 1000px;
+            margin: 50px auto;
+            background-color: rgba(30, 44, 62, 0.85); /* Darker background with transparency */
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .table-container h2 {
+            font-size: 26px;
+            color: #87cefa; /* Light blue for headings */
+            margin-bottom: 20px;
+            border-bottom: 2px solid #87cefa;
+            padding-bottom: 10px;
+        }
+
+        .table-container table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #fff;
+        }
+
+        .table-container th, .table-container td {
+            padding: 12px;
+            text-align: left;
+        }
+
+        .table-container th {
+            background-color: #4682b4;
+            color: #fff;
+        }
+
+        .table-container td {
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-delete {
+            background-color: #e74c3c;
+            color: #fff;
+            transition: background-color 0.3s;
+        }
+
+        .btn-delete:hover {
+            background-color: #c0392b;
+        }
+
+        .btn-update {
+            background-color: #f39c12;
+            color: #fff;
+            transition: background-color 0.3s;
+        }
+
+        .btn-update:hover {
+            background-color: #e67e22;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgb(0,0,0); 
+            background-color: rgba(0,0,0,0.4); 
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; 
+            max-width: 500px; 
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Responsive Design */
+        @media screen and (max-width: 600px) {
+            .table-container {
+                padding: 20px;
+                margin: 20px;
+            }
+
+            .btn-update, .btn-delete {
+                width: 100%;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
     <?php include('../layout/header.php'); ?>
 
     <div id="layoutSidenav">
         <?php include('../layout/navigation.php'); ?>
-
         <div id="layoutSidenav_content">
             <main>
-                <div class="container-fluid px-4">
-                    <h1 class="mt-4">Show Details</h1>
-                    <ol class="breadcrumb mb-4">
-                        <li class="breadcrumb-item active">Show Details</li>
-                    </ol>
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <i class="fas fa-table me-1"></i>
-                            Students List
-                        </div>
-                        <div class="card-body">
-                            <?php if (count($students) > 0): ?>
-                                <table class="table table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Age</th>
-                                            <th>Gender</th>
-                                            <th>Status</th> <!-- New Column for Actions -->
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($students as $index => $student): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($student['name']); ?></td>
-                                                <td><?php echo htmlspecialchars($student['age']); ?></td>
-                                                <td><?php echo htmlspecialchars($student['gender']); ?></td>
-                                                <td>
-                                                    <!-- Insert, Update, Delete Buttons with Icons -->
-                                                    <button class="btn btn-success btn-sm" title="Insert" data-bs-toggle="modal" data-bs-target="#insertModal">
-                                                        <i class="fas fa-plus"></i>
-                                                    </button>
-                                                    <button class="btn btn-warning btn-sm" title="Update" data-bs-toggle="modal" data-bs-target="#updateModal" onclick="openUpdateModal(<?php echo $index; ?>)">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
-                                                    <button class="btn btn-danger btn-sm" title="Delete" data-bs-toggle="modal" data-bs-target="#deleteModal" onclick="openDeleteModal(<?php echo $index; ?>)">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            <?php else: ?>
-                                <p>No student records available.</p>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                <div class="table-container">
+                    <h2>Student Information</h2>
+                    <table id="datatablesSimple" class="display">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Age</th>
+                                <th>Gender</th>
+                                <th>Course</th>
+                                <th>Campus</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($_SESSION['entries'] as $index => $entry): ?>
+                                <tr>
+                                    <td><?php echo $entry['name']; ?></td>
+                                    <td><?php echo $entry['age']; ?></td>
+                                    <td><?php echo $entry['gender']; ?></td>
+                                    <td><?php echo $entry['course']; ?></td>
+                                    <td><?php echo $entry['campus']; ?></td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <!-- Update Button (opens modal) -->
+                                            <button class="btn btn-update" onclick="openModal(<?php echo $index; ?>)">Update</button>
+                                            <!-- Delete Button -->
+                                            <a href="?delete=<?php echo $index; ?>" onclick="return confirm('Are you sure you want to delete this entry?');">
+                                                <button class="btn btn-delete">Delete</button>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </main>
             <?php include('../layout/footer.php'); ?>
         </div>
     </div>
+
+    <!-- Modal for Updating Student Info -->
+    <div id="updateModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Update Student Information</h2>
+            <?php if (isset($updateEntry)): ?>
+                <form method="POST" action="update-entry.php?index=<?php echo $updateIndex; ?>">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" name="name" value="<?php echo $updateEntry['name']; ?>" required><br><br>
+                    <label for="age">Age:</label>
+                    <input type="number" id="age" name="age" value="<?php echo $updateEntry['age']; ?>" required><br><br>
+                    <label for="gender">Gender:</label>
+                    <select id="gender" name="gender" required>
+                        <option value="Male" <?php echo ($updateEntry['gender'] == 'Male') ? 'selected' : ''; ?>>Male</option>
+                        <option value="Female" <?php echo ($updateEntry['gender'] == 'Female') ? 'selected' : ''; ?>>Female</option>
+                    </select><br><br>
+                    <label for="course">Course:</label>
+                    <input type="text" id="course" name="course" value="<?php echo $updateEntry['course']; ?>" required><br><br>
+                    <label for="campus">Campus:</label>
+                    <input type="text" id="campus" name="campus" value="<?php echo $updateEntry['campus']; ?>" required><br><br>
+                    <button type="submit" class="btn btn-update">Update</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+
     <?php include('../layout/script.php'); ?>
-
-    <!-- Insert Modal -->
-    <div class="modal fade" id="insertModal" tabindex="-1" aria-labelledby="insertModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="insertModalLabel">Insert Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form action="" method="POST">
-                        <div class="mb-3">
-                            <label for="name" class="form-label">Name</label>
-                            <input type="text" class="form-control" name="name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="age" class="form-label">Age</label>
-                            <input type="number" class="form-control" name="age" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="gender" class="form-label">Gender</label>
-                            <select class="form-select" name="gender" required>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
-                        <input type="hidden" name="action" value="insert">
-                        <button type="submit" class="btn btn-success">Save</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Update Modal -->
-    <div class="modal fade" id="updateModal" tabindex="-1" aria-labelledby="updateModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="updateModalLabel">Update Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form action="" method="POST">
-                        <div class="mb-3">
-                            <label for="updateName" class="form-label">Name</label>
-                            <input type="text" class="form-control" id="updateName" name="name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="updateAge" class="form-label">Age</label>
-                            <input type="number" class="form-control" id="updateAge" name="age" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="updateGender" class="form-label">Gender</label>
-                            <select class="form-select" id="updateGender" name="gender" required>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
-                        <input type="hidden" name="action" value="update">
-                        <input type="hidden" name="index" id="updateIndex">
-                        <button type="submit" class="btn btn-warning">Update</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Delete Modal -->
-    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteModalLabel">Delete Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to delete this student?</p>
-                    <form action="" method="POST">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="index" id="deleteIndex">
-                        <button type="submit" class="btn btn-danger">Delete</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script>
-        function openUpdateModal(index) {
-            const student = <?php echo json_encode($students); ?>[index];
-            document.getElementById('updateName').value = student.name;
-            document.getElementById('updateAge').value = student.age;
-            document.getElementById('updateGender').value = student.gender;
-            document.getElementById('updateIndex').value = index;
+        $(document).ready(function() {
+            $('#datatablesSimple').DataTable();
+        });
+
+        // Open the modal for updating
+        function openModal(index) {
+            var modal = document.getElementById('updateModal');
+            modal.style.display = "block";
+            // You can pass the index and use it to fetch data or handle it in a form
         }
 
-        function openDeleteModal(index) {
-            document.getElementById('deleteIndex').value = index;
+        // Close the modal
+        function closeModal() {
+            var modal = document.getElementById('updateModal');
+            modal.style.display = "none";
+        }
+
+        // Close modal if clicked outside of it
+        window.onclick = function(event) {
+            var modal = document.getElementById('updateModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
         }
     </script>
-
 </body>
 </html>
